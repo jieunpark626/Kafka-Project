@@ -5,9 +5,9 @@ producer = KafkaProducer(
     value_serializer=lambda v: v.encode('utf-8')
 )
 messages = [
-    "test01 : kafka test 01",
-    "test02 : kafka test 02",
-    "test03 : kafka test 03"
+    "kafka test 01",
+    "kafka test 02",
+    "kafka test 03"
 ]
 topic = 'my-topic'
 for message in messages:

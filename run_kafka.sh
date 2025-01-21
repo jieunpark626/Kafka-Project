@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Kafka 설치 경로 (Kafka를 다운로드하고 압축을 해제한 디렉토리 경로로 변경하세요)
-KAFKA_DIR="./kafka"
+KAFKA_DIR="./kafka_src"
 
 # Kafka 로그 디렉토리
 LOGS_DIR="$KAFKA_DIR/logs"
