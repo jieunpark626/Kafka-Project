@@ -7,6 +7,8 @@ consumer = KafkaConsumer(
     value_deserializer=lambda m: m.decode('utf-8'),
     enable_auto_commit=False # 자동 커밋 비활성화
 )
+
 for message in consumer:
     print(f"Consumer Received: {message.value}")
+
 consumer.commit()
