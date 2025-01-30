@@ -109,7 +109,7 @@ public class Producer extends Thread {
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         // client id is not required, but it's good to track the source of requests beyond just ip/port
         // by allowing a logical application name to be included in server-side request logging
-        props.put(ProducerConfig.CLIENT_ID_CONFIG, "client-" + UUID.randomUUID());
+        props.put(ProducerConfig.CLIENT_ID_CONFIG, "client-pq");
         // key and value are just byte arrays, so we need to set appropriate serializers
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, IntegerSerializer.class);
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
@@ -135,7 +135,7 @@ public class Producer extends Thread {
     }
 
     private RecordMetadata syncSend(KafkaProducer<Integer, String> producer, int key, String value)
-        throws ExecutionException, InterruptedException {
+            throws ExecutionException, InterruptedException {
         try {
             // send the record and then call get, which blocks waiting for the ack from the broker
             RecordMetadata metadata = producer.send(new ProducerRecord<>(topic, key, value)).get();
@@ -162,12 +162,14 @@ public class Producer extends Thread {
         }
 
         /**
-         * A callback method the user can implement to provide asynchronous handling of request completion. This method will
-         * be called when the record sent to the server has been acknowledged. When exception is not null in the callback,
-         * metadata will contain the special -1 value for all fields except for topicPartition, which will be valid.
+         * A callback method the user can implement to provide asynchronous handling of request completion. This method
+         * will be called when the record sent to the server has been acknowledged. When exception is not null in the
+         * callback, metadata will contain the special -1 value for all fields except for topicPartition, which will be
+         * valid.
          *
-         * @param metadata The metadata for the record that was sent (i.e. the partition and offset). An empty metadata
-         *                 with -1 value for all fields except for topicPartition will be returned if an error occurred.
+         * @param metadata  The metadata for the record that was sent (i.e. the partition and offset). An empty metadata
+         *                  with -1 value for all fields except for topicPartition will be returned if an error
+         *                  occurred.
          * @param exception The exception thrown during processing of this record. Null if no error occurred.
          */
         public void onCompletion(RecordMetadata metadata, Exception exception) {

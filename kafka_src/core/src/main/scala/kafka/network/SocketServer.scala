@@ -1128,6 +1128,21 @@ private[kafka] class Processor(
         openOrClosingChannel(receive.source) match {
           case Some(channel) =>
             val header = parseRequestHeader(receive.payload)
+            val clientId = header.clientId
+
+            val flag = if (channel.getPriorityFlag() == 0) {
+              if (clientId == "client-pq") 2 else 1
+
+            } else {
+              channel.getPriorityFlag()
+            }
+
+            if (channel.getPriorityFlag() == 0) {
+              channel.setPriorityFlag(flag)
+            }
+            println(s"clientId is $clientId")
+            println(s"Flag is $flag")
+
             if (header.apiKey == ApiKeys.SASL_HANDSHAKE && channel.maybeBeginServerReauthentication(receive,
               () => time.nanoseconds()))
               trace(s"Begin re-authentication: $channel")

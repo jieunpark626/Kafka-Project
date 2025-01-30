@@ -33,10 +33,9 @@ import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
- * A Kafka connection either existing on a client (which could be a broker in an
- * inter-broker scenario) and representing the channel to a remote broker or the
- * reverse (existing on a broker and representing the channel to a remote
- * client, which could be a broker in an inter-broker scenario).
+ * A Kafka connection either existing on a client (which could be a broker in an inter-broker scenario) and representing
+ * the channel to a remote broker or the reverse (existing on a broker and representing the channel to a remote client,
+ * which could be a broker in an inter-broker scenario).
  * <p>
  * Each instance has the following:
  * <ul>
@@ -89,7 +88,8 @@ public class KafkaChannel implements AutoCloseable {
         MUTED_AND_THROTTLED_AND_RESPONSE_PENDING
     }
 
-    /** Socket server events that will change the mute state:
+    /**
+     * Socket server events that will change the mute state:
      * <ul>
      *   <li> REQUEST_RECEIVED: A request has been received from the client. </li>
      *   <li> RESPONSE_SENT: A response has been sent out to the client (ack != 0) or SocketServer has heard back from
@@ -97,7 +97,7 @@ public class KafkaChannel implements AutoCloseable {
      *   <li> THROTTLE_STARTED: Throttling started due to quota violation. </li>
      *   <li> THROTTLE_ENDED: Throttling ended. </li>
      * </ul>
-     *
+     * <p>
      * Valid transitions on each event are:
      * <ul>
      *   <li> REQUEST_RECEIVED: MUTED => MUTED_AND_RESPONSE_PENDING </li>
@@ -135,6 +135,16 @@ public class KafkaChannel implements AutoCloseable {
     private boolean midWrite;
     private long lastReauthenticationStartNanos;
 
+    private int priorityFlag;
+
+    public void setPriorityFlag(int flag) {
+        this.priorityFlag = flag;
+    }
+
+    public int getPriorityFlag() {
+        return this.priorityFlag;
+    }
+
     public KafkaChannel(String id, TransportLayer transportLayer, Supplier<Authenticator> authenticatorCreator,
                         int maxReceiveSize, MemoryPool memoryPool, ChannelMetadataRegistry metadataRegistry) {
         this.id = id;
@@ -148,6 +158,7 @@ public class KafkaChannel implements AutoCloseable {
         this.disconnected = false;
         this.muteState = ChannelMuteState.NOT_MUTED;
         this.state = ChannelState.NOT_CONNECTED;
+        this.priorityFlag = 0;
     }
 
     public void close() throws IOException {
@@ -167,15 +178,16 @@ public class KafkaChannel implements AutoCloseable {
     }
 
     /**
-     * Does handshake of transportLayer and authentication using configured authenticator.
-     * For SSL with client authentication enabled, {@link TransportLayer#handshake()} performs
-     * authentication. For SASL, authentication is performed by {@link Authenticator#authenticate()}.
+     * Does handshake of transportLayer and authentication using configured authenticator. For SSL with client
+     * authentication enabled, {@link TransportLayer#handshake()} performs authentication. For SASL, authentication is
+     * performed by {@link Authenticator#authenticate()}.
      */
     public void prepare() throws AuthenticationException, IOException {
         boolean authenticating = false;
         try {
-            if (!transportLayer.ready())
+            if (!transportLayer.ready()) {
                 transportLayer.handshake();
+            }
             if (transportLayer.ready() && !authenticator.complete()) {
                 authenticating = true;
                 authenticator.authenticate();
@@ -251,7 +263,9 @@ public class KafkaChannel implements AutoCloseable {
      */
     void mute() {
         if (muteState == ChannelMuteState.NOT_MUTED) {
-            if (!disconnected) transportLayer.removeInterestOps(SelectionKey.OP_READ);
+            if (!disconnected) {
+                transportLayer.removeInterestOps(SelectionKey.OP_READ);
+            }
             muteState = ChannelMuteState.MUTED;
         }
     }
@@ -264,7 +278,9 @@ public class KafkaChannel implements AutoCloseable {
      */
     boolean maybeUnmute() {
         if (muteState == ChannelMuteState.MUTED) {
-            if (!disconnected) transportLayer.addInterestOps(SelectionKey.OP_READ);
+            if (!disconnected) {
+                transportLayer.addInterestOps(SelectionKey.OP_READ);
+            }
             muteState = ChannelMuteState.NOT_MUTED;
         }
         return muteState == ChannelMuteState.NOT_MUTED;
@@ -325,6 +341,7 @@ public class KafkaChannel implements AutoCloseable {
 
     /**
      * Finish up any processing on {@link #prepare()} failure.
+     *
      * @throws IOException
      */
     void completeCloseOnAuthenticationFailure() throws IOException {
@@ -345,8 +362,9 @@ public class KafkaChannel implements AutoCloseable {
         //(receive == null) we dont mute. we also dont mute if whatever memory required has already been
         //successfully allocated (if none is required for the currently-being-read request
         //receive.memoryAllocated() is expected to return true)
-        if (receive == null || receive.memoryAllocated())
+        if (receive == null || receive.memoryAllocated()) {
             return false;
+        }
         //also cannot mute if underlying transport is not in the ready state
         return transportLayer.ready();
     }
@@ -360,10 +378,11 @@ public class KafkaChannel implements AutoCloseable {
     }
 
     /**
-     * Returns the address to which this channel's socket is connected or `null` if the socket has never been connected.
-     *
-     * If the socket was connected prior to being closed, then this method will continue to return the
-     * connected address after the socket is closed.
+     * Returns the address to which this channel's socket is connected or `null` if the socket has never been
+     * connected.
+     * <p>
+     * If the socket was connected prior to being closed, then this method will continue to return the connected address
+     * after the socket is closed.
      */
     public InetAddress socketAddress() {
         return transportLayer.socketChannel().socket().getInetAddress();
@@ -371,14 +390,18 @@ public class KafkaChannel implements AutoCloseable {
 
     public String socketDescription() {
         Socket socket = transportLayer.socketChannel().socket();
-        if (socket.getInetAddress() == null)
+        if (socket.getInetAddress() == null) {
             return socket.getLocalAddress().toString();
+        }
         return socket.getInetAddress().toString();
     }
 
     public void setSend(NetworkSend send) {
-        if (this.send != null)
-            throw new IllegalStateException("Attempt to begin a send operation with prior send operation still in progress, connection id is " + id);
+        if (this.send != null) {
+            throw new IllegalStateException(
+                    "Attempt to begin a send operation with prior send operation still in progress, connection id is "
+                            + id);
+        }
         this.send = send;
         this.transportLayer.addInterestOps(SelectionKey.OP_WRITE);
     }
@@ -423,8 +446,9 @@ public class KafkaChannel implements AutoCloseable {
     }
 
     public long write() throws IOException {
-        if (send == null)
+        if (send == null) {
             return 0;
+        }
 
         midWrite = true;
         return send.writeTo(transportLayer);
@@ -438,8 +462,7 @@ public class KafkaChannel implements AutoCloseable {
     }
 
     /**
-     * Returns accumulated network thread time for this channel and resets
-     * the value to zero.
+     * Returns accumulated network thread time for this channel and resets the value to zero.
      */
     public long getAndResetNetworkThreadTimeNanos() {
         long current = networkThreadTimeNanos;
@@ -487,12 +510,11 @@ public class KafkaChannel implements AutoCloseable {
     public String toString() {
         return super.toString() + " id=" + id;
     }
-    
+
     /**
-     * Return the number of times this instance has successfully authenticated. This
-     * value can only exceed 1 when re-authentication is enabled and it has
-     * succeeded at least once.
-     * 
+     * Return the number of times this instance has successfully authenticated. This value can only exceed 1 when
+     * re-authentication is enabled and it has succeeded at least once.
+     *
      * @return the number of times this instance has successfully authenticated
      */
     public int successfulAuthentications() {
@@ -500,38 +522,31 @@ public class KafkaChannel implements AutoCloseable {
     }
 
     /**
-     * If this is a server-side connection that has an expiration time and at least
-     * 1 second has passed since the prior re-authentication (if any) started then
-     * begin the process of re-authenticating the connection and return true,
+     * If this is a server-side connection that has an expiration time and at least 1 second has passed since the prior
+     * re-authentication (if any) started then begin the process of re-authenticating the connection and return true,
      * otherwise return false
-     * 
-     * @param saslHandshakeNetworkReceive
-     *            the mandatory {@link NetworkReceive} containing the
-     *            {@code SaslHandshakeRequest} that has been received on the server
-     *            and that initiates re-authentication.
-     * @param nowNanosSupplier
-     *            {@code Supplier} of the current time. The value must be in
-     *            nanoseconds as per {@code System.nanoTime()} and is therefore only
-     *            useful when compared to such a value -- it's absolute value is
-     *            meaningless.
-     * 
-     * @return true if this is a server-side connection that has an expiration time
-     *         and at least 1 second has passed since the prior re-authentication
-     *         (if any) started to indicate that the re-authentication process has
-     *         begun, otherwise false
-     * @throws AuthenticationException
-     *             if re-authentication fails due to invalid credentials or other
-     *             security configuration errors
-     * @throws IOException
-     *             if read/write fails due to an I/O error
-     * @throws IllegalStateException
-     *             if this channel is not "ready"
+     *
+     * @param saslHandshakeNetworkReceive the mandatory {@link NetworkReceive} containing the
+     *                                    {@code SaslHandshakeRequest} that has been received on the server and that
+     *                                    initiates re-authentication.
+     * @param nowNanosSupplier            {@code Supplier} of the current time. The value must be in nanoseconds as per
+     *                                    {@code System.nanoTime()} and is therefore only useful when compared to such a
+     *                                    value -- it's absolute value is meaningless.
+     * @return true if this is a server-side connection that has an expiration time and at least 1 second has passed
+     * since the prior re-authentication (if any) started to indicate that the re-authentication process has begun,
+     * otherwise false
+     * @throws AuthenticationException if re-authentication fails due to invalid credentials or other security
+     *                                 configuration errors
+     * @throws IOException             if read/write fails due to an I/O error
+     * @throws IllegalStateException   if this channel is not "ready"
      */
     public boolean maybeBeginServerReauthentication(NetworkReceive saslHandshakeNetworkReceive,
-            Supplier<Long> nowNanosSupplier) throws AuthenticationException, IOException {
-        if (!ready())
+                                                    Supplier<Long> nowNanosSupplier)
+            throws AuthenticationException, IOException {
+        if (!ready()) {
             throw new IllegalStateException(
                     "KafkaChannel should be \"ready\" when processing SASL Handshake for potential re-authentication");
+        }
         /*
          * Re-authentication is disabled if there is no session expiration time, in
          * which case the SASL handshake network receive will be processed normally,
@@ -539,8 +554,9 @@ public class KafkaChannel implements AutoCloseable {
          * check if we are muted since we are processing a received packet when we invoke
          * this.
          */
-        if (authenticator.serverSessionExpirationTimeNanos() == null)
+        if (authenticator.serverSessionExpirationTimeNanos() == null) {
             return false;
+        }
         /*
          * We've delayed getting the time as long as possible in case we don't need it,
          * but at this point we need it -- so get it now.
@@ -552,8 +568,9 @@ public class KafkaChannel implements AutoCloseable {
          * results in a failure result being sent to the client.
          */
         if (lastReauthenticationStartNanos != 0
-                && nowNanos - lastReauthenticationStartNanos < MIN_REAUTH_INTERVAL_ONE_SECOND_NANOS)
+                && nowNanos - lastReauthenticationStartNanos < MIN_REAUTH_INTERVAL_ONE_SECOND_NANOS) {
             return false;
+        }
         lastReauthenticationStartNanos = nowNanos;
         swapAuthenticatorsAndBeginReauthentication(
                 new ReauthenticationContext(authenticator, saslHandshakeNetworkReceive, nowNanos));
@@ -561,100 +578,89 @@ public class KafkaChannel implements AutoCloseable {
     }
 
     /**
-     * If this is a client-side connection that is not muted, there is no
-     * in-progress write, and there is a session expiration time defined that has
-     * past then begin the process of re-authenticating the connection and return
-     * true, otherwise return false
-     * 
-     * @param nowNanosSupplier
-     *            {@code Supplier} of the current time. The value must be in
-     *            nanoseconds as per {@code System.nanoTime()} and is therefore only
-     *            useful when compared to such a value -- it's absolute value is
-     *            meaningless.
-     * 
-     * @return true if this is a client-side connection that is not muted, there is
-     *         no in-progress write, and there is a session expiration time defined
-     *         that has past to indicate that the re-authentication process has
-     *         begun, otherwise false
-     * @throws AuthenticationException
-     *             if re-authentication fails due to invalid credentials or other
-     *             security configuration errors
-     * @throws IOException
-     *             if read/write fails due to an I/O error
-     * @throws IllegalStateException
-     *             if this channel is not "ready"
+     * If this is a client-side connection that is not muted, there is no in-progress write, and there is a session
+     * expiration time defined that has past then begin the process of re-authenticating the connection and return true,
+     * otherwise return false
+     *
+     * @param nowNanosSupplier {@code Supplier} of the current time. The value must be in nanoseconds as per
+     *                         {@code System.nanoTime()} and is therefore only useful when compared to such a value --
+     *                         it's absolute value is meaningless.
+     * @return true if this is a client-side connection that is not muted, there is no in-progress write, and there is a
+     * session expiration time defined that has past to indicate that the re-authentication process has begun, otherwise
+     * false
+     * @throws AuthenticationException if re-authentication fails due to invalid credentials or other security
+     *                                 configuration errors
+     * @throws IOException             if read/write fails due to an I/O error
+     * @throws IllegalStateException   if this channel is not "ready"
      */
     public boolean maybeBeginClientReauthentication(Supplier<Long> nowNanosSupplier)
             throws AuthenticationException, IOException {
-        if (!ready())
+        if (!ready()) {
             throw new IllegalStateException(
                     "KafkaChannel should always be \"ready\" when it is checked for possible re-authentication");
+        }
         if (muteState != ChannelMuteState.NOT_MUTED || midWrite
-                || authenticator.clientSessionReauthenticationTimeNanos() == null)
+                || authenticator.clientSessionReauthenticationTimeNanos() == null) {
             return false;
+        }
         /*
          * We've delayed getting the time as long as possible in case we don't need it,
          * but at this point we need it -- so get it now.
          */
         long nowNanos = nowNanosSupplier.get();
-        if (nowNanos < authenticator.clientSessionReauthenticationTimeNanos())
+        if (nowNanos < authenticator.clientSessionReauthenticationTimeNanos()) {
             return false;
+        }
         swapAuthenticatorsAndBeginReauthentication(new ReauthenticationContext(authenticator, receive, nowNanos));
         receive = null;
         return true;
     }
-    
+
     /**
-     * Return the number of milliseconds that elapsed while re-authenticating this
-     * session from the perspective of this instance, if applicable, otherwise null.
-     * The server-side perspective will yield a lower value than the client-side
-     * perspective of the same re-authentication because the client-side observes an
-     * additional network round-trip.
-     * 
-     * @return the number of milliseconds that elapsed while re-authenticating this
-     *         session from the perspective of this instance, if applicable,
-     *         otherwise null
+     * Return the number of milliseconds that elapsed while re-authenticating this session from the perspective of this
+     * instance, if applicable, otherwise null. The server-side perspective will yield a lower value than the
+     * client-side perspective of the same re-authentication because the client-side observes an additional network
+     * round-trip.
+     *
+     * @return the number of milliseconds that elapsed while re-authenticating this session from the perspective of this
+     * instance, if applicable, otherwise null
      */
     public Long reauthenticationLatencyMs() {
         return authenticator.reauthenticationLatencyMs();
     }
 
     /**
-     * Return true if this is a server-side channel and the given time is past the
-     * session expiration time, if any, otherwise false
-     * 
-     * @param nowNanos
-     *            the current time in nanoseconds as per {@code System.nanoTime()}
-     * @return true if this is a server-side channel and the given time is past the
-     *         session expiration time, if any, otherwise false
+     * Return true if this is a server-side channel and the given time is past the session expiration time, if any,
+     * otherwise false
+     *
+     * @param nowNanos the current time in nanoseconds as per {@code System.nanoTime()}
+     * @return true if this is a server-side channel and the given time is past the session expiration time, if any,
+     * otherwise false
      */
     public boolean serverAuthenticationSessionExpired(long nowNanos) {
         Long serverSessionExpirationTimeNanos = authenticator.serverSessionExpirationTimeNanos();
         return serverSessionExpirationTimeNanos != null && nowNanos - serverSessionExpirationTimeNanos > 0;
     }
-    
+
     /**
-     * Return the (always non-null but possibly empty) client-side
-     * {@link NetworkReceive} response that arrived during re-authentication but
-     * is unrelated to re-authentication. This corresponds to a request sent
-     * prior to the beginning of re-authentication; the request was made when the
-     * channel was successfully authenticated, and the response arrived during the
-     * re-authentication process.
-     * 
-     * @return client-side {@link NetworkReceive} response that arrived during
-     *         re-authentication that is unrelated to re-authentication. This may
-     *         be empty.
+     * Return the (always non-null but possibly empty) client-side {@link NetworkReceive} response that arrived during
+     * re-authentication but is unrelated to re-authentication. This corresponds to a request sent prior to the
+     * beginning of re-authentication; the request was made when the channel was successfully authenticated, and the
+     * response arrived during the re-authentication process.
+     *
+     * @return client-side {@link NetworkReceive} response that arrived during re-authentication that is unrelated to
+     * re-authentication. This may be empty.
      */
     public Optional<NetworkReceive> pollResponseReceivedDuringReauthentication() {
         return authenticator.pollResponseReceivedDuringReauthentication();
     }
-    
+
     /**
-     * Return true if this is a server-side channel and the connected client has
-     * indicated that it supports re-authentication, otherwise false
-     * 
-     * @return true if this is a server-side channel and the connected client has
-     *         indicated that it supports re-authentication, otherwise false
+     * Return true if this is a server-side channel and the connected client has indicated that it supports
+     * re-authentication, otherwise false
+     *
+     * @return true if this is a server-side channel and the connected client has indicated that it supports
+     * re-authentication, otherwise false
      */
     boolean connectedClientSupportsReauthentication() {
         return authenticator.connectedClientSupportsReauthentication();
