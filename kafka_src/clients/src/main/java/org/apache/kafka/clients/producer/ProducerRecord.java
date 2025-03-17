@@ -17,8 +17,6 @@
 package org.apache.kafka.clients.producer;
 
 import org.apache.kafka.common.header.Header;
-import org.apache.kafka.common.header.Headers;
-import org.apache.kafka.common.header.internals.RecordHeaders;
 
 import java.util.Objects;
 
@@ -46,11 +44,11 @@ import java.util.Objects;
  * In either of the cases above, the timestamp that has actually been used will be returned to user in
  * {@link RecordMetadata}
  */
-public class ProducerRecord<K, V> {
+public class ProducerRecord<K, V, H> {
 
     private final String topic;
     private final Integer partition;
-    private final Headers headers;
+    private final Iterable<Header> headers;
     private final K key;
     private final V value;
     private final Long timestamp;
@@ -80,7 +78,7 @@ public class ProducerRecord<K, V> {
         this.key = key;
         this.value = value;
         this.timestamp = timestamp;
-        this.headers = new RecordHeaders(headers);
+        this.headers = headers;
     }
 
     /**
@@ -132,6 +130,10 @@ public class ProducerRecord<K, V> {
     public ProducerRecord(String topic, K key, V value) {
         this(topic, null, null, key, value, null);
     }
+
+    public ProducerRecord(String topic, K key, V value, Iterable<Header> header) {
+        this(topic, null, null, key, value, header);
+    }
     
     /**
      * Create a record with no key
@@ -153,7 +155,7 @@ public class ProducerRecord<K, V> {
     /**
      * @return The headers
      */
-    public Headers headers() {
+    public Iterable<Header> headers() {
         return headers;
     }
 
@@ -202,7 +204,7 @@ public class ProducerRecord<K, V> {
         else if (!(o instanceof ProducerRecord))
             return false;
 
-        ProducerRecord<?, ?> that = (ProducerRecord<?, ?>) o;
+        ProducerRecord<?, ?, ?> that = (ProducerRecord<?, ?, ?>) o;
 
         return Objects.equals(key, that.key) &&
             Objects.equals(partition, that.partition) &&

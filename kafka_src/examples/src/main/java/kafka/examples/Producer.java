@@ -29,6 +29,9 @@ import org.apache.kafka.common.errors.ProducerFencedException;
 import org.apache.kafka.common.errors.RetriableException;
 import org.apache.kafka.common.errors.SerializationException;
 import org.apache.kafka.common.errors.UnsupportedVersionException;
+import org.apache.kafka.common.header.Header;
+import org.apache.kafka.common.header.Headers;
+import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.apache.kafka.common.serialization.IntegerSerializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 
@@ -77,13 +80,15 @@ public class Producer extends Thread {
     public void run() {
         int key = 0;
         int sentRecords = 0;
+        Headers headers = new RecordHeaders();
+        headers.add("priority", "HIGH".getBytes());
         // the producer instance is thread safe
         try (KafkaProducer<Integer, String> producer = createKafkaProducer()) {
             while (!closed && sentRecords < numRecords) {
                 if (isAsync) {
-                    asyncSend(producer, key, "test" + key);
+                    asyncSend(producer, key, "test", headers);
                 } else {
-                    syncSend(producer, key, "test" + key);
+                    syncSend(producer, key, "test", headers);
                 }
                 key++;
                 sentRecords++;
@@ -127,18 +132,18 @@ public class Producer extends Thread {
         return new KafkaProducer<>(props);
     }
 
-    private void asyncSend(KafkaProducer<Integer, String> producer, int key, String value) {
+    private void asyncSend(KafkaProducer<Integer, String> producer, int key, String value, Iterable<Header> headers) {
         // send the record asynchronously, setting a callback to be notified of the result
         // note that, even if you set a small batch.size with linger.ms=0, the send operation
         // will still be blocked when buffer.memory is full or metadata are not available
-        producer.send(new ProducerRecord<>(topic, key, value), new ProducerCallback(key, value));
+        producer.send(new ProducerRecord<>(topic, key, value, headers), new ProducerCallback(key, value));
     }
 
-    private RecordMetadata syncSend(KafkaProducer<Integer, String> producer, int key, String value)
+    private RecordMetadata syncSend(KafkaProducer<Integer, String> producer, int key, String value, Iterable<Header> headers)
             throws ExecutionException, InterruptedException {
         try {
             // send the record and then call get, which blocks waiting for the ack from the broker
-            RecordMetadata metadata = producer.send(new ProducerRecord<>(topic, key, value)).get();
+            RecordMetadata metadata = producer.send(new ProducerRecord<>(topic, key, value, headers)).get();
             Utils.maybePrintRecord(numRecords, key, value, metadata);
             return metadata;
         } catch (AuthorizationException | UnsupportedVersionException | ProducerFencedException

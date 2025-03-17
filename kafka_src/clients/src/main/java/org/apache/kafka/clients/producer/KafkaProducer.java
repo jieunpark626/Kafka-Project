@@ -850,6 +850,15 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
     }
 
     /**
+     * Asynchronously send a record to a topic. Equivalent to <code>send(record, null)</code>.
+     * See {@link #send(ProducerRecord, Callback)} for details.
+     */
+    @Override
+    public Future<RecordMetadata> send(ProducerRecord<K, V, Header> record) {
+        return send(record, null);
+    }
+
+    /**
      * Asynchronously send a record to a topic and invoke the provided callback when the send has been acknowledged.
      * <p>
      * The send is asynchronous and this method will return immediately once the record has been stored in the buffer of
@@ -959,6 +968,13 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
      */
     @Override
     public Future<RecordMetadata> send(ProducerRecord<K, V> record, Callback callback) {
+        // intercept the record, which can be potentially modified; this method does not throw exceptions
+        ProducerRecord<K, V> interceptedRecord = this.interceptors.onSend(record);
+        return doSend(interceptedRecord, callback);
+    }
+
+    @Override
+    public Future<RecordMetadata> send(ProducerRecord<K, V, Headers> record, Callback callback) {
         // intercept the record, which can be potentially modified; this method does not throw exceptions
         ProducerRecord<K, V> interceptedRecord = this.interceptors.onSend(record);
         return doSend(interceptedRecord, callback);
