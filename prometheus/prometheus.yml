@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 10s  # 10초마다 데이터 수집
+
+scrape_configs:
+  - job_name: "kafka"
+    static_configs:
+      - targets: ["host.docker.internal:9999"]  # Kafka JMX Exporter가 실행되는 호스트 네트워크
+
+remote_write:
+  - url: "http://influxdb:8086/api/v2/write?org=my-org&bucket=kafka_metrics&precision=s"
+    headers:
+      Authorization: "Token LB8DR9ayzs77lcaux5W4pugn31yPW5q3a1Sz7Sa-CFqTBZiExc7CsObpHVRARn00fBeoiEbyxT5uQYtd1dIhlA=="

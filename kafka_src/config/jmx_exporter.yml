@@ -1,0 +1,12 @@
+lowercaseOutputName: true
+lowercaseOutputLabelNames: true
+rules:
+  - pattern: "kafka.server<type=BrokerTopicMetrics, name=(.*)>"
+    name: "kafka_broker_$1"
+    type: GAUGE
+  - pattern: "kafka.network<type=RequestMetrics, name=(.*), request=(.*)>"
+    name: "kafka_request_$1_$2"
+    type: GAUGE
+  - pattern: "kafka.server<type=ReplicaManager, name=(.*)>"
+    name: "kafka_replica_$1"
+    type: GAUGE

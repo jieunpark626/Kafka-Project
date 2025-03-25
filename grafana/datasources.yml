@@ -1,0 +1,10 @@
+apiVersion: 1
+datasources:
+  - name: InfluxDB
+    type: influxdb
+    access: proxy
+    url: http://172.16.68.182:8086
+    database: kafka_metrics
+    user: admin
+    password: admin
+

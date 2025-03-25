@@ -26,6 +26,18 @@ start_zookeeper() {
 # 함수: Kafka Broker 시작
 start_kafka() {
     echo "Starting Kafka Broker..."
+    export JMX_PORT=9998
+    export JMX_EXPORTER_JAR="$KAFKA_DIR/jmx_prometheus_javaagent.jar"
+    export JMX_CONFIG="$KAFKA_DIR/config/jmx_exporter.yml"
+    export KAFKA_JMX_OPTS="-javaagent:$KAFKA_DIR/jmx_prometheus_javaagent.jar=9999:$KAFKA_DIR/config/jmx_exporter.yml \
+                        -Dcom.sun.management.jmxremote.port=9998 \
+                        -Dcom.sun.management.jmxremote.rmi.port=9998 \
+                        -Dcom.sun.management.jmxremote.local.only=false \
+                        -Dcom.sun.management.jmxremote.authenticate=false \
+                        -Dcom.sun.management.jmxremote.ssl=false"
+    echo $JMX_EXPORTER_JAR
+    echo $JMX_CONFIG
+    echo $KAFKA_JMX_OPTS
     nohup $KAFKA_DIR/bin/kafka-server-start.sh $KAFKA_CONFIG > $LOGS_DIR/kafka.log 2>&1 &
     sleep 10
     echo "Kafka Broker started. Logs: $LOGS_DIR/kafka.log"
