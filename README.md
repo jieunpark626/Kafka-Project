@@ -2,7 +2,7 @@
 
 ## How to run
 ```
-docker compose up # 데이터 흐름: Kafka -> Prometheus -> InfluxDB -> Grafana
+docker compose up # 데이터 흐름: Kafka(JMX Exporter) -> Prometheus -> InfluxDB -> Grafana
 ./run_kafka.sh start # 여기서 JMX 같이 띄워줌
 ./kafka_src/examples/bin/java-producer-consumer-demo.sh 1000
 ```
@@ -10,6 +10,14 @@ docker compose up # 데이터 흐름: Kafka -> Prometheus -> InfluxDB -> Grafana
 - Grafana (localhost:3000) 로 이동
 - Prometheus Datasource 추가 (localhost:9090)
 - 시각화 대시보드 구성
+  - 예시 메트릭: `rate(kafka_consumer_records_consumed_total[1m])`
+
+## 컴포넌트-포트 목록
+- Kafka Broker (:9092)
+- Kafka JMX Exporter (:9999)
+- InfluxDB (:8086)
+- Grafana (:3000)
+- Prometheus (:9090)
 
 ### Kafka가 무엇인지
 ...
