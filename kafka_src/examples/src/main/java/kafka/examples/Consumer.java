@@ -41,8 +41,8 @@ import java.util.concurrent.CountDownLatch;
 import static java.util.Collections.singleton;
 
 /**
- * A simple consumer thread that subscribes to a topic, fetches new records and prints them.
- * The thread does not stop until all records are completed or an exception is raised.
+ * A simple consumer thread that subscribes to a topic, fetches new records and prints them. The thread does not stop
+ * until all records are completed or an exception is raised.
  */
 public class Consumer extends Thread implements ConsumerRebalanceListener {
     private final String bootstrapServers;
@@ -90,7 +90,18 @@ public class Consumer extends Thread implements ConsumerRebalanceListener {
                     // the next poll must be called within session.timeout.ms to avoid group rebalance
                     ConsumerRecords<Integer, String> records = consumer.poll(Duration.ofSeconds(1));
                     for (ConsumerRecord<Integer, String> record : records) {
-                        Utils.maybePrintRecord(numRecords, record);
+                        String priority = "Unknown";
+                        for (org.apache.kafka.common.header.Header header : record.headers()) {
+                            if ("priority".equals(header.key())) {
+                                priority = new String(header.value(), java.nio.charset.StandardCharsets.UTF_8);
+                                break;
+                            }
+                        }
+                        System.out.printf(
+                                "[Consumer] key=%d, value=%s, offset=%d, priority=%s%n",
+                                record.key(), record.value(), record.offset(), priority
+                        );
+                        //Utils.maybePrintRecord(numRecords, record);
                     }
                     remainingRecords -= records.count();
                 } catch (AuthorizationException | UnsupportedVersionException
