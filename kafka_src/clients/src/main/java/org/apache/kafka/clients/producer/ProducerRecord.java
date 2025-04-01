@@ -17,6 +17,8 @@
 package org.apache.kafka.clients.producer;
 
 import org.apache.kafka.common.header.Header;
+import org.apache.kafka.common.header.Headers;
+import org.apache.kafka.common.header.internals.RecordHeaders;
 
 import java.util.Objects;
 
@@ -29,11 +31,11 @@ import java.util.Objects;
  * present a partition will be assigned in a round-robin fashion. Note that partition numbers are 0-indexed.
  * <p>
  * The record also has an associated timestamp. If the user did not provide a timestamp, the producer will stamp the
- * record with its current time. The timestamp eventually used by Kafka depends on the timestamp type configured for
- * the topic.
+ * record with its current time. The timestamp eventually used by Kafka depends on the timestamp type configured for the
+ * topic.
  * <li>
- * If the topic is configured to use {@link org.apache.kafka.common.record.TimestampType#CREATE_TIME CreateTime},
- * the timestamp in the producer record will be used by the broker.
+ * If the topic is configured to use {@link org.apache.kafka.common.record.TimestampType#CREATE_TIME CreateTime}, the
+ * timestamp in the producer record will be used by the broker.
  * </li>
  * <li>
  * If the topic is configured to use {@link org.apache.kafka.common.record.TimestampType#LOG_APPEND_TIME LogAppendTime},
@@ -44,52 +46,57 @@ import java.util.Objects;
  * In either of the cases above, the timestamp that has actually been used will be returned to user in
  * {@link RecordMetadata}
  */
-public class ProducerRecord<K, V, H> {
+public class ProducerRecord<K, V> {
 
     private final String topic;
     private final Integer partition;
-    private final Iterable<Header> headers;
+    private final Headers headers;
     private final K key;
     private final V value;
     private final Long timestamp;
 
     /**
      * Creates a record with a specified timestamp to be sent to a specified topic and partition
-     * 
-     * @param topic The topic the record will be appended to
+     *
+     * @param topic     The topic the record will be appended to
      * @param partition The partition to which the record should be sent
-     * @param timestamp The timestamp of the record, in milliseconds since epoch. If null, the producer will assign
-     *                  the timestamp using System.currentTimeMillis().
-     * @param key The key that will be included in the record
-     * @param value The record contents
-     * @param headers the headers that will be included in the record
+     * @param timestamp The timestamp of the record, in milliseconds since epoch. If null, the producer will assign the
+     *                  timestamp using System.currentTimeMillis().
+     * @param key       The key that will be included in the record
+     * @param value     The record contents
+     * @param headers   the headers that will be included in the record
      */
     public ProducerRecord(String topic, Integer partition, Long timestamp, K key, V value, Iterable<Header> headers) {
-        if (topic == null)
+        if (topic == null) {
             throw new IllegalArgumentException("Topic cannot be null.");
-        if (timestamp != null && timestamp < 0)
+        }
+        if (timestamp != null && timestamp < 0) {
             throw new IllegalArgumentException(
-                    String.format("Invalid timestamp: %d. Timestamp should always be non-negative or null.", timestamp));
-        if (partition != null && partition < 0)
+                    String.format("Invalid timestamp: %d. Timestamp should always be non-negative or null.",
+                            timestamp));
+        }
+        if (partition != null && partition < 0) {
             throw new IllegalArgumentException(
-                    String.format("Invalid partition: %d. Partition number should always be non-negative or null.", partition));
+                    String.format("Invalid partition: %d. Partition number should always be non-negative or null.",
+                            partition));
+        }
         this.topic = topic;
         this.partition = partition;
         this.key = key;
         this.value = value;
         this.timestamp = timestamp;
-        this.headers = headers;
+        this.headers = headers == null ? new RecordHeaders() : new RecordHeaders(headers);
     }
 
     /**
      * Creates a record with a specified timestamp to be sent to a specified topic and partition
      *
-     * @param topic The topic the record will be appended to
+     * @param topic     The topic the record will be appended to
      * @param partition The partition to which the record should be sent
      * @param timestamp The timestamp of the record, in milliseconds since epoch. If null, the producer will assign the
      *                  timestamp using System.currentTimeMillis().
-     * @param key The key that will be included in the record
-     * @param value The record contents
+     * @param key       The key that will be included in the record
+     * @param value     The record contents
      */
     public ProducerRecord(String topic, Integer partition, Long timestamp, K key, V value) {
         this(topic, partition, timestamp, key, value, null);
@@ -98,33 +105,33 @@ public class ProducerRecord<K, V, H> {
     /**
      * Creates a record to be sent to a specified topic and partition
      *
-     * @param topic The topic the record will be appended to
+     * @param topic     The topic the record will be appended to
      * @param partition The partition to which the record should be sent
-     * @param key The key that will be included in the record
-     * @param value The record contents
-     * @param headers The headers that will be included in the record
+     * @param key       The key that will be included in the record
+     * @param value     The record contents
+     * @param headers   The headers that will be included in the record
      */
     public ProducerRecord(String topic, Integer partition, K key, V value, Iterable<Header> headers) {
         this(topic, partition, null, key, value, headers);
     }
-    
+
     /**
      * Creates a record to be sent to a specified topic and partition
      *
-     * @param topic The topic the record will be appended to
+     * @param topic     The topic the record will be appended to
      * @param partition The partition to which the record should be sent
-     * @param key The key that will be included in the record
-     * @param value The record contents
+     * @param key       The key that will be included in the record
+     * @param value     The record contents
      */
     public ProducerRecord(String topic, Integer partition, K key, V value) {
         this(topic, partition, null, key, value, null);
     }
-    
+
     /**
      * Create a record to be sent to Kafka
-     * 
+     *
      * @param topic The topic the record will be appended to
-     * @param key The key that will be included in the record
+     * @param key   The key that will be included in the record
      * @param value The record contents
      */
     public ProducerRecord(String topic, K key, V value) {
@@ -134,10 +141,10 @@ public class ProducerRecord<K, V, H> {
     public ProducerRecord(String topic, K key, V value, Iterable<Header> header) {
         this(topic, null, null, key, value, header);
     }
-    
+
     /**
      * Create a record with no key
-     * 
+     *
      * @param topic The topic this record should be sent to
      * @param value The record contents
      */
@@ -155,7 +162,7 @@ public class ProducerRecord<K, V, H> {
     /**
      * @return The headers
      */
-    public Iterable<Header> headers() {
+    public Headers headers() {
         return headers;
     }
 
@@ -193,25 +200,27 @@ public class ProducerRecord<K, V, H> {
         String key = this.key == null ? "null" : this.key.toString();
         String value = this.value == null ? "null" : this.value.toString();
         String timestamp = this.timestamp == null ? "null" : this.timestamp.toString();
-        return "ProducerRecord(topic=" + topic + ", partition=" + partition + ", headers=" + headers + ", key=" + key + ", value=" + value +
-            ", timestamp=" + timestamp + ")";
+        return "ProducerRecord(topic=" + topic + ", partition=" + partition + ", headers=" + headers + ", key=" + key
+                + ", value=" + value +
+                ", timestamp=" + timestamp + ")";
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
+        if (this == o) {
             return true;
-        else if (!(o instanceof ProducerRecord))
+        } else if (!(o instanceof ProducerRecord)) {
             return false;
+        }
 
-        ProducerRecord<?, ?, ?> that = (ProducerRecord<?, ?, ?>) o;
+        ProducerRecord<?, ?> that = (ProducerRecord<?, ?>) o;
 
         return Objects.equals(key, that.key) &&
-            Objects.equals(partition, that.partition) &&
-            Objects.equals(topic, that.topic) &&
-            Objects.equals(headers, that.headers) &&
-            Objects.equals(value, that.value) &&
-            Objects.equals(timestamp, that.timestamp);
+                Objects.equals(partition, that.partition) &&
+                Objects.equals(topic, that.topic) &&
+                Objects.equals(headers, that.headers) &&
+                Objects.equals(value, that.value) &&
+                Objects.equals(timestamp, that.timestamp);
     }
 
     @Override
