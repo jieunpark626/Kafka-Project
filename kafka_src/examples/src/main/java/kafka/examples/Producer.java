@@ -85,6 +85,7 @@ public class Producer extends Thread {
         try (KafkaProducer<Integer, String> producer = createKafkaProducer()) {
             while (!closed && sentRecords < numRecords) {
                 String priority = (sentRecords % 2 == 0) ? "HIGH" : "LOW";
+                //String priority = "High";
                 Headers headers = new RecordHeaders();
                 headers.add("priority", priority.getBytes());
                 if (isAsync) {
@@ -200,21 +201,4 @@ public class Producer extends Thread {
                     key, value, priority, metadata.partition(), metadata.offset());
         }
     }
-
-//    public static void main(String[] args) throws InterruptedException {
-//        CountDownLatch latch = new CountDownLatch(1);
-//        Producer producer = new Producer(
-//                "test-thread",
-//                "localhost:9092",
-//                "test-topic",
-//                true,
-//                null,
-//                false,
-//                10,
-//                0,
-//                latch
-//        );
-//        producer.start();
-//        producer.join();
-//    }
 }

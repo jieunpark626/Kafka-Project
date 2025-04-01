@@ -55,6 +55,11 @@ import scala.collection.mutable.ArrayBuffer
 import scala.jdk.CollectionConverters._
 import scala.util.control.ControlThrowable
 
+import org.apache.kafka.common.requests.ProduceRequest
+import org.apache.kafka.common.record.MemoryRecords
+import scala.util.control.Breaks.{break, breakable}
+
+
 /**
  * Handles new connections, requests and responses to and from broker.
  * Kafka supports two types of request planes :
@@ -1148,6 +1153,47 @@ private[kafka] class Processor(
                 val req = new RequestChannel.Request(processor = id, context = context,
                   startTimeNanos = nowNanos, memoryPool, receive.payload, requestChannel.metrics, None)
 
+                var extractedPriority: Option[String] = None
+                if (header.apiKey == ApiKeys.PRODUCE) {
+                  val produceRequest = req.body[ProduceRequest]
+                  val topicData = produceRequest.data.topicData.iterator()
+                  breakable {
+                    while (topicData.hasNext) {
+                      val tData = topicData.next()
+                      val partitionData = tData.partitionData.iterator()
+                      while (partitionData.hasNext) {
+                        val pData = partitionData.next()
+                        val records = pData.records
+                        records match {
+                          case memRecords: MemoryRecords =>
+                            val batchIter = memRecords.batches.iterator()
+                            while (batchIter.hasNext) {
+                              val batch = batchIter.next()
+                              val recordIter = batch.iterator()
+                              while (recordIter.hasNext) {
+                                val record = recordIter.next()
+                                val headerIter = record.headers.iterator
+                                while (headerIter.hasNext) {
+                                  val header = headerIter.next()
+                                  if (header.key == "priority") {
+                                    val priorityValue = Option(header.value)
+                                      .map(bytes => new String(bytes, "UTF-8"))
+                                      .getOrElse("null")
+                                    println(s"[Kafka-Broker] Extracted PRIORITY from header: $priorityValue")
+                                    extractedPriority = Some(priorityValue)
+                                    break()
+                                  }
+                                }
+                              }
+                            }
+                          case _ =>
+                            println("[Kafka-Broker] Unknown record type: not MemoryRecords")
+                        }
+                      }
+                    }
+                  }
+                }
+
                 // KIP-511: ApiVersionsRequest is intercepted here to catch the client software name
                 // and version. It is done here to avoid wiring things up to the api layer.
                 if (header.apiKey == ApiKeys.API_VERSIONS) {
@@ -1158,7 +1204,7 @@ private[kafka] class Processor(
                       apiVersionsRequest.data.clientSoftwareVersion))
                   }
                 }
-                requestChannel.sendRequest(req)
+                requestChannel.sendRequest(req, extractedPriority)
                 selector.mute(connectionId)
                 handleChannelMuteEvent(connectionId, ChannelMuteEvent.REQUEST_RECEIVED)
               }
