@@ -6,7 +6,7 @@
  * (the "License"); you may not use this file except in compliance with
  * the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -52,14 +52,16 @@ object RequestChannel extends Logging {
   val ProcessorMetricTag = "processor"
 
   /**
-    * Deprecated protocol apis are logged at info level while the rest are logged at debug level.
-    * That makes it possible to enable the former without enabling latter.
-    */
+   * Deprecated protocol apis are logged at info level while the rest are logged at debug level.
+   * That makes it possible to enable the former without enabling latter.
+   */
   private def isRequestLoggingEnabled(header: RequestHeader): Boolean = requestLogger.underlying.isDebugEnabled ||
     (requestLogger.underlying.isInfoEnabled && header.isApiVersionDeprecated())
 
   sealed trait BaseRequest
+
   case object ShutdownRequest extends BaseRequest
+
   case object WakeupRequest extends BaseRequest
 
   case class Session(principal: KafkaPrincipal, clientAddress: InetAddress) {
@@ -81,7 +83,7 @@ object RequestChannel extends Logging {
     def apply(metricName: String): RequestMetrics = metricsMap(metricName)
 
     def close(): Unit = {
-       metricsMap.values.foreach(_.removeMetrics())
+      metricsMap.values.foreach(_.removeMetrics())
     }
   }
 
@@ -252,7 +254,7 @@ object RequestChannel extends Logging {
             else RequestMetrics.consumerFetchMetricName
           Seq(specifiedMetricName, header.apiKey.name)
         } else if (header.apiKey == ApiKeys.ADD_PARTITIONS_TO_TXN && body[AddPartitionsToTxnRequest].allVerifyOnlyRequest) {
-            Seq(RequestMetrics.verifyPartitionsInTxnMetricName)
+          Seq(RequestMetrics.verifyPartitionsInTxnMetricName)
         } else {
           Seq(header.apiKey.name)
         }
@@ -365,11 +367,13 @@ class RequestChannel(val queueSize: Int,
                      val metricNamePrefix: String,
                      time: Time,
                      val metrics: RequestChannel.Metrics) {
+
   import RequestChannel._
 
   private val metricsGroup = new KafkaMetricsGroup(this.getClass)
 
   private val requestQueue = new ArrayBlockingQueue[BaseRequest](queueSize)
+  private val priorityQueue = new ArrayBlockingQueue[BaseRequest](queueSize)
   private val processors = new ConcurrentHashMap[Int, Processor]()
   val requestQueueSizeMetricName = metricNamePrefix.concat(RequestQueueSizeMetric)
   val responseQueueSizeMetricName = metricNamePrefix.concat(ResponseQueueSizeMetric)
@@ -378,7 +382,7 @@ class RequestChannel(val queueSize: Int,
   metricsGroup.newGauge(requestQueueSizeMetricName, () => requestQueue.size)
 
   metricsGroup.newGauge(responseQueueSizeMetricName, () => {
-    processors.values.asScala.foldLeft(0) {(total, processor) =>
+    processors.values.asScala.foldLeft(0) { (total, processor) =>
       total + processor.responseQueueSize
     }
   })
@@ -401,10 +405,21 @@ class RequestChannel(val queueSize: Int,
     requestQueue.put(request)
   }
 
+  //add for priorityqueue
+  def sendRequest(request: Request, priority: Option[String]): Unit = {
+    priority match {
+      case Some("HIGH") =>
+        priorityQueue.put(request)
+      case _ =>
+        requestQueue.put(request)
+    }
+  }
+
+
   def closeConnection(
-    request: RequestChannel.Request,
-    errorCounts: java.util.Map[Errors, Integer]
-  ): Unit = {
+                       request: RequestChannel.Request,
+                       errorCounts: java.util.Map[Errors, Integer]
+                     ): Unit = {
     // This case is used when the request handler has encountered an error, but the client
     // does not expect a response (e.g. when produce request has acks set to 0)
     updateErrorMetrics(request.header.apiKey, errorCounts.asScala)
@@ -412,10 +427,10 @@ class RequestChannel(val queueSize: Int,
   }
 
   def sendResponse(
-    request: RequestChannel.Request,
-    response: AbstractResponse,
-    onComplete: Option[Send => Unit]
-  ): Unit = {
+                    request: RequestChannel.Request,
+                    response: AbstractResponse,
+                    onComplete: Option[Send => Unit]
+                  ): Unit = {
     updateErrorMetrics(request.header.apiKey, response.errorCounts.asScala)
     sendResponse(new RequestChannel.SendResponse(
       request,
@@ -480,8 +495,8 @@ class RequestChannel(val queueSize: Int,
   }
 
   /** Get the next request or block until specified time has elapsed 
-   *  Check the callback queue and execute first if present since these
-   *  requests have already waited in line. */
+   * Check the callback queue and execute first if present since these
+   * requests have already waited in line. */
   def receiveRequest(timeout: Long): RequestChannel.BaseRequest = {
     val callbackRequest = callbackQueue.poll()
     if (callbackRequest != null)
@@ -626,7 +641,7 @@ class RequestMetrics(name: String) {
       else {
         synchronized {
           if (meter == null)
-             meter = metricsGroup.newMeter(ErrorsPerSec, "requests", TimeUnit.SECONDS, tags)
+            meter = metricsGroup.newMeter(ErrorsPerSec, "requests", TimeUnit.SECONDS, tags)
           meter
         }
       }

@@ -80,11 +80,13 @@ public class Producer extends Thread {
     public void run() {
         int key = 0;
         int sentRecords = 0;
-        Headers headers = new RecordHeaders();
-        headers.add("priority", "HIGH".getBytes());
+
         // the producer instance is thread safe
         try (KafkaProducer<Integer, String> producer = createKafkaProducer()) {
             while (!closed && sentRecords < numRecords) {
+                String priority = (sentRecords % 2 == 0) ? "HIGH" : "LOW";
+                Headers headers = new RecordHeaders();
+                headers.add("priority", priority.getBytes());
                 if (isAsync) {
                     asyncSend(producer, key, "test", headers);
                 } else {
@@ -132,18 +134,22 @@ public class Producer extends Thread {
         return new KafkaProducer<>(props);
     }
 
-    private void asyncSend(KafkaProducer<Integer, String> producer, int key, String value, Iterable<Header> headers) {
+    private void asyncSend(KafkaProducer<Integer, String> producer, int key, String value, Headers headers) {
         // send the record asynchronously, setting a callback to be notified of the result
         // note that, even if you set a small batch.size with linger.ms=0, the send operation
         // will still be blocked when buffer.memory is full or metadata are not available
-        producer.send(new ProducerRecord<>(topic, key, value, headers), new ProducerCallback(key, value));
+        String priority = new String(headers.lastHeader("priority").value());
+        producer.send(new ProducerRecord<Integer, String>(topic, key, value, headers),
+                new ProducerCallback(key, value, priority));
     }
 
-    private RecordMetadata syncSend(KafkaProducer<Integer, String> producer, int key, String value, Iterable<Header> headers)
+    private RecordMetadata syncSend(KafkaProducer<Integer, String> producer, int key, String value,
+                                    Headers headers)
             throws ExecutionException, InterruptedException {
         try {
             // send the record and then call get, which blocks waiting for the ack from the broker
-            RecordMetadata metadata = producer.send(new ProducerRecord<>(topic, key, value, headers)).get();
+            RecordMetadata metadata = producer.send(new ProducerRecord<Integer, String>(topic, key, value, headers))
+                    .get();
             Utils.maybePrintRecord(numRecords, key, value, metadata);
             return metadata;
         } catch (AuthorizationException | UnsupportedVersionException | ProducerFencedException
@@ -160,10 +166,13 @@ public class Producer extends Thread {
     class ProducerCallback implements Callback {
         private final int key;
         private final String value;
+        private final String priority;
 
-        public ProducerCallback(int key, String value) {
+
+        public ProducerCallback(int key, String value, String priority) {
             this.key = key;
             this.value = value;
+            this.priority = priority;
         }
 
         /**
@@ -187,6 +196,25 @@ public class Producer extends Thread {
             } else {
                 Utils.maybePrintRecord(numRecords, key, value, metadata);
             }
+            System.out.printf("Sent record(key=%d value=%s priority=%s) to partition=%d offset=%d%n",
+                    key, value, priority, metadata.partition(), metadata.offset());
         }
     }
+
+//    public static void main(String[] args) throws InterruptedException {
+//        CountDownLatch latch = new CountDownLatch(1);
+//        Producer producer = new Producer(
+//                "test-thread",
+//                "localhost:9092",
+//                "test-topic",
+//                true,
+//                null,
+//                false,
+//                10,
+//                0,
+//                latch
+//        );
+//        producer.start();
+//        producer.join();
+//    }
 }

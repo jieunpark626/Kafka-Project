@@ -6,7 +6,7 @@
  * (the "License"); you may not use this file except in compliance with
  * the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -145,7 +145,7 @@ class DeleteOffsetsConsumerGroupCommandIntegrationTest extends ConsumerGroupComm
   private def produceRecord(): Unit = {
     val producer = createProducer()
     try {
-      producer.send(new ProducerRecord(topic, 0, null, null)).get()
+      producer.send(new ProducerRecord(topic, Integer.valueOf(0), null.asInstanceOf[Array[Byte]], null.asInstanceOf[Array[Byte]])).get()
     } finally {
       Utils.closeQuietly(producer, "producer")
     }

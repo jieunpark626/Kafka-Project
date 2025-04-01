@@ -6,7 +6,7 @@
  * (the "License"); you may not use this file except in compliance with
  * the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -70,12 +70,12 @@ abstract class BaseProducerSendTest extends KafkaServerTestHarness {
     super.setUp(testInfo)
 
     admin = TestUtils.createAdminClient(brokers, listenerName,
-        TestUtils.securityConfigs(Mode.CLIENT,
-          securityProtocol,
-          trustStoreFile,
-          "adminClient",
-          TestUtils.SslCertificateCn,
-          clientSaslProperties))
+      TestUtils.securityConfigs(Mode.CLIENT,
+        securityProtocol,
+        trustStoreFile,
+        "adminClient",
+        TestUtils.SslCertificateCn,
+        clientSaslProperties))
 
     consumer = TestUtils.createConsumer(
       bootstrapServers(listenerName = ListenerName.forSecurityProtocol(SecurityProtocol.PLAINTEXT)),
@@ -98,7 +98,7 @@ abstract class BaseProducerSendTest extends KafkaServerTestHarness {
                                batchSize: Int = 16384,
                                compressionType: String = "none",
                                maxBlockMs: Long = 60 * 1000L,
-                               bufferSize: Long = 1024L * 1024L): KafkaProducer[Array[Byte],Array[Byte]] = {
+                               bufferSize: Long = 1024L * 1024L): KafkaProducer[Array[Byte], Array[Byte]] = {
     val producer = TestUtils.createProducer(
       bootstrapServers(),
       compressionType = compressionType,
@@ -162,7 +162,7 @@ abstract class BaseProducerSendTest extends KafkaServerTestHarness {
       assertEquals(0L, producer.send(record0, callback).get.offset, "Should have offset 0")
 
       // send a record with null value should be ok
-      val record1 = new ProducerRecord[Array[Byte], Array[Byte]](topic, partition, "key".getBytes(StandardCharsets.UTF_8), null)
+      val record1 = new ProducerRecord[Array[Byte], Array[Byte]](topic, partition, "key".getBytes(StandardCharsets.UTF_8), null.asInstanceOf[Array[Byte]])
       assertEquals(1L, producer.send(record1, callback).get.offset, "Should have offset 1")
 
       // send a record with null key should be ok
@@ -411,11 +411,11 @@ abstract class BaseProducerSendTest extends KafkaServerTestHarness {
   }
 
   /**
-    * Checks partitioning behavior before and after partitions are added
-    *
-    * Producer will attempt to send messages to the partition specified in each record, and should
-    * succeed as long as the partition is included in the metadata.
-    */
+   * Checks partitioning behavior before and after partitions are added
+   *
+   * Producer will attempt to send messages to the partition specified in each record, and should
+   * succeed as long as the partition is included in the metadata.
+   */
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumName)
   @ValueSource(strings = Array("zk", "kraft"))
   def testSendBeforeAndAfterPartitionExpansion(quorum: String): Unit = {
