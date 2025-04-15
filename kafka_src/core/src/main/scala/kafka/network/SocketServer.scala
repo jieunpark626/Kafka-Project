@@ -57,7 +57,6 @@ import scala.util.control.ControlThrowable
 
 import org.apache.kafka.common.requests.ProduceRequest
 import org.apache.kafka.common.record.MemoryRecords
-import scala.util.control.Breaks.{break, breakable}
 
 
 /**
@@ -1154,45 +1153,52 @@ private[kafka] class Processor(
                   startTimeNanos = nowNanos, memoryPool, receive.payload, requestChannel.metrics, None)
 
                 var extractedPriority: Option[String] = None
+
                 if (header.apiKey == ApiKeys.PRODUCE) {
-                  val produceRequest = req.body[ProduceRequest]
-                  val topicData = produceRequest.data.topicData.iterator()
-                  breakable {
+                  try {
+                    val produceRequest = req.body[ProduceRequest]
+                    val topicData = produceRequest.data.topicData.iterator()
+
                     while (topicData.hasNext) {
                       val tData = topicData.next()
                       val partitionData = tData.partitionData.iterator()
+
                       while (partitionData.hasNext) {
                         val pData = partitionData.next()
                         val records = pData.records
+
                         records match {
                           case memRecords: MemoryRecords =>
                             val batchIter = memRecords.batches.iterator()
-                            while (batchIter.hasNext) {
+                            while (batchIter.hasNext && extractedPriority.isEmpty) {
                               val batch = batchIter.next()
                               val recordIter = batch.iterator()
-                              while (recordIter.hasNext) {
+
+                              while (recordIter.hasNext && extractedPriority.isEmpty) {
                                 val record = recordIter.next()
                                 val headerIter = record.headers.iterator
-                                while (headerIter.hasNext) {
+
+                                while (headerIter.hasNext && extractedPriority.isEmpty) {
                                   val header = headerIter.next()
-                                  if (header.key == "priority") {
-                                    val priorityValue = Option(header.value)
-                                      .map(bytes => new String(bytes, "UTF-8"))
-                                      .getOrElse("null")
-                                    println(s"[Kafka-Broker] Extracted PRIORITY from header: $priorityValue")
-                                    extractedPriority = Some(priorityValue)
-                                    break()
+                                  if (header.key.equalsIgnoreCase("priority")) {
+                                    val value = Option(header.value).map(new String(_, "UTF-8")).getOrElse("null")
+                                    extractedPriority = Some(value)
+                                    println(s"[Kafka-Broker] Extracted PRIORITY from header: $value")
                                   }
                                 }
                               }
                             }
-                          case _ =>
-                            println("[Kafka-Broker] Unknown record type: not MemoryRecords")
+
+                          case _ => ()
                         }
                       }
                     }
+                  } catch {
+                    case e: Throwable =>
+                      println(s"[Kafka-Broker] Error parsing PRODUCE: ${e.getMessage}")
                   }
                 }
+
 
                 // KIP-511: ApiVersionsRequest is intercepted here to catch the client software name
                 // and version. It is done here to avoid wiring things up to the api layer.
@@ -1204,6 +1210,7 @@ private[kafka] class Processor(
                       apiVersionsRequest.data.clientSoftwareVersion))
                   }
                 }
+                println(s"[Kafka-Broker] Extracted priority before sendRequest: ${extractedPriority.getOrElse("None")}")
                 requestChannel.sendRequest(req, extractedPriority)
                 selector.mute(connectionId)
                 handleChannelMuteEvent(connectionId, ChannelMuteEvent.REQUEST_RECEIVED)

@@ -416,7 +416,6 @@ class RequestChannel(val queueSize: Int,
         println(s"[Kafka-Broker] Request sent to DEFAULT queue (LOW)")
       case _ =>
         requestQueue.put(request)
-        println(s"[Kafka-Broker] Request sent to DEFAULT queue")
     }
   }
 
