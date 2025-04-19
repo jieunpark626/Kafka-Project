@@ -8,12 +8,16 @@ import java.util.{PriorityQueue => JPriorityQueue}
 object PriorityQueue {
   private val queues = new ConcurrentHashMap[TopicPartition, JPriorityQueue[(Int, SimpleRecord)]]()
 
-  def getOrCreate(tp: TopicPartition): JPriorityQueue[(Int, SimpleRecord)] = {
-    queues.computeIfAbsent(tp, _ =>
-      new JPriorityQueue[(Int, SimpleRecord)](
-        (a: (Int, SimpleRecord), b: (Int, SimpleRecord)) => Integer.compare(b._1, a._1) // 높은 priority 먼저
+  def create(tp: TopicPartition): JPriorityQueue[(Int, SimpleRecord)] = {
+    if (queues.containsKey(tp))
+      return queues.get(tp)
+    else {
+      val newPriorityQueue = new JPriorityQueue[(Int, SimpleRecord)](
+        (a: (Int, SimpleRecord), b: (Int, SimpleRecord)) => Integer.compare(b._1, a._1)
       )
-    )
+      queues.put(tp, newPriorityQueue)
+      return newPriorityQueue
+    }
   }
 
   def poll(tp: TopicPartition, max: Int): List[SimpleRecord] = {

@@ -85,7 +85,6 @@ public class Producer extends Thread {
         try (KafkaProducer<Integer, String> producer = createKafkaProducer()) {
             while (!closed && sentRecords < numRecords) {
                 String priority = (sentRecords % 2 == 0) ? "HIGH" : "LOW";
-                //String priority = "High";
                 Headers headers = new RecordHeaders();
                 headers.add("priority", priority.getBytes());
                 if (isAsync) {
@@ -100,7 +99,7 @@ public class Producer extends Thread {
             Utils.printOut("Unhandled exception");
             e.printStackTrace();
         }
-        Utils.printOut("Sent %d records", sentRecords);
+        Utils.printOut("[Producer] %d records", sentRecords);
         shutdown();
     }
 
@@ -197,8 +196,8 @@ public class Producer extends Thread {
             } else {
                 Utils.maybePrintRecord(numRecords, key, value, metadata);
             }
-            System.out.printf("Sent record(key=%d value=%s priority=%s) to partition=%d offset=%d%n",
-                    key, value, priority, metadata.partition(), metadata.offset());
+            System.out.printf("[Producer] key=%d, value=%s, offset=%d%n, priority=%s",
+                    key, value, metadata.offset(), priority);
         }
     }
 }

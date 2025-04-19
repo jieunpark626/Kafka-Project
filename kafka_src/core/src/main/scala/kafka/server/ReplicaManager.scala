@@ -874,14 +874,14 @@ class ReplicaManager(val config: KafkaConfig,
             case _ => 0
           }
 
-          println(s"[PriorityQueue] Appending to TP: $tp | Priority: $priorityString ($priority) | Value: ${record.value()}")
+          println(s"[PriorityQueue] TopicPartition: $tp | Priority: $priorityString ($priority)")
           val simpleRecord = new SimpleRecord(record.timestamp(), record.key(), record.value(), record.headers())
-          PriorityQueue.getOrCreate(tp).add((priority, simpleRecord))
+          PriorityQueue.create(tp).add((priority, simpleRecord))
 
         }
       } catch {
         case e: Exception =>
-          println(s"[PriorityQueue] Failed to process priority for $tp: ${e.getMessage}")
+          println(s"[PriorityQueue] Failed $tp: ${e.getMessage}")
       }
     }
 
@@ -1677,25 +1677,24 @@ class ReplicaManager(val config: KafkaConfig,
 
     // check if this fetch request can be satisfied right away
     val logReadResults = readFromLog(params, fetchInfos, quota, readFromPurgatory = false)
+
     val priorityResults = fetchInfos.flatMap { case (tp, _) =>
       val topicPartition = tp.topicPartition
-      val pqRecords: List[SimpleRecord] = PriorityQueue.poll(topicPartition, max = 10000)
+      val priorityQueueRecords: List[SimpleRecord] = PriorityQueue.poll(topicPartition, max = 10000)
 
-      if (pqRecords.nonEmpty) {
-        println(s"[PriorityFetch] Returning ${pqRecords.size} priority records for $topicPartition")
-
-        val memoryRecords = MemoryRecords.withRecords(CompressionType.NONE, pqRecords: _*)
+      if (priorityQueueRecords.nonEmpty) {
+        val memoryRecords = MemoryRecords.withRecords(CompressionType.NONE, priorityQueueRecords: _*)
 
         val fetchPartitionData = new FetchPartitionData(
           Errors.NONE,
-          0L, // highWatermark
-          0L, // lastStableOffset
-          memoryRecords, // records
-          Optional.empty(), // divergingEpoch
-          OptionalLong.of(0L), // logStartOffset ✅
-          Optional.ofNullable(null), // abortedTransactions
-          OptionalInt.empty(), // preferredReadReplica ✅
-          false // isReassignmentFetch
+          0L,
+          0L,
+          memoryRecords,
+          Optional.empty(),
+          OptionalLong.of(0L),
+          Optional.ofNullable(null),
+          OptionalInt.empty(),
+          false
         )
 
         Some(tp -> fetchPartitionData)
@@ -1704,7 +1703,6 @@ class ReplicaManager(val config: KafkaConfig,
       }
     }
     if (priorityResults.nonEmpty) {
-      println(s"[PriorityFetch] Responding ${priorityResults.size} priority partitions")
       responseCallback(priorityResults)
       return
     }
