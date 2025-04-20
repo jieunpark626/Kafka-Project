@@ -75,7 +75,8 @@ import scala.compat.java8.OptionConverters._
 import scala.jdk.CollectionConverters._
 
 import org.apache.kafka.common.TopicPartition
-
+import org.apache.kafka.common.record.{CompressionType, MemoryRecords, TimestampType}
+import java.nio.ByteBuffer
 
 /*
  * Result metadata of a log append operation on the log
@@ -860,30 +861,6 @@ class ReplicaManager(val config: KafkaConfig,
         allEntries.filter { case (tp, _) =>
           !unverifiedEntries.contains(tp)
         }
-
-    for ((tp, memRecords) <- verifiedEntries) {
-      try {
-        val batches = memRecords.batches().asScala
-        for (batch <- batches; record <- batch.asScala) {
-          val priorityHeaderOpt = record.headers().find(_.key() == "priority")
-          val priorityString = priorityHeaderOpt.map(h => new String(h.value())).getOrElse("LOW")
-
-          val priority = priorityString match {
-            case "HIGH" => 2
-            case "LOW" => 1
-            case _ => 0
-          }
-
-          println(s"[PriorityQueue] TopicPartition: $tp | Priority: $priorityString ($priority)")
-          val simpleRecord = new SimpleRecord(record.timestamp(), record.key(), record.value(), record.headers())
-          PriorityQueue.create(tp).add((priority, simpleRecord))
-
-        }
-      } catch {
-        case e: Exception =>
-          println(s"[PriorityQueue] Failed $tp: ${e.getMessage}")
-      }
-    }
 
     val localProduceResults = appendToLocalLog(internalTopicsAllowed = internalTopicsAllowed,
       origin, verifiedEntries, requiredAcks, requestLocal, verificationGuards.toMap)
@@ -1677,36 +1654,6 @@ class ReplicaManager(val config: KafkaConfig,
 
     // check if this fetch request can be satisfied right away
     val logReadResults = readFromLog(params, fetchInfos, quota, readFromPurgatory = false)
-
-    val priorityResults = fetchInfos.flatMap { case (tp, _) =>
-      val topicPartition = tp.topicPartition
-      val priorityQueueRecords: List[SimpleRecord] = PriorityQueue.poll(topicPartition, max = 10000)
-
-      if (priorityQueueRecords.nonEmpty) {
-        val memoryRecords = MemoryRecords.withRecords(CompressionType.NONE, priorityQueueRecords: _*)
-
-        val fetchPartitionData = new FetchPartitionData(
-          Errors.NONE,
-          0L,
-          0L,
-          memoryRecords,
-          Optional.empty(),
-          OptionalLong.of(0L),
-          Optional.ofNullable(null),
-          OptionalInt.empty(),
-          false
-        )
-
-        Some(tp -> fetchPartitionData)
-      } else {
-        None
-      }
-    }
-    if (priorityResults.nonEmpty) {
-      responseCallback(priorityResults)
-      return
-    }
-
     var bytesReadable: Long = 0
     var errorReadingData = false
 
@@ -1742,11 +1689,74 @@ class ReplicaManager(val config: KafkaConfig,
     //                        6) has a preferred read replica
     if (!remoteFetchInfo.isPresent && (params.maxWaitMs <= 0 || fetchInfos.isEmpty || bytesReadable >= params.minBytes || errorReadingData ||
       hasDivergingEpoch || hasPreferredReadReplica)) {
-      val fetchPartitionData = logReadResults.map { case (tp, result) =>
-        val isReassignmentFetch = params.isFromFollower && isAddingReplica(tp.topicPartition, params.replicaId)
-        tp -> result.toFetchPartitionData(isReassignmentFetch)
+      val prioritizedResults = logReadResults.flatMap { case (tp, result) =>
+        try {
+          val batches = result.info.records.batches().asScala
+          val newBatches = new scala.collection.mutable.ListBuffer[MemoryRecords]()
+
+          batches.foreach { batch =>
+            val records = batch.iterator().asScala.toList
+            val (high, low) = records.partition { record =>
+              val headerOpt = record.headers().find(_.key() == "priority")
+              headerOpt.exists(h => new String(h.value()) == "HIGH")
+            }
+
+            // 기존 batch의 offset 기준으로 builder 생성
+            val estimatedSize = batch.sizeInBytes() + 128 // 여유 버퍼
+            val builder = MemoryRecords.builder(
+              ByteBuffer.allocate(estimatedSize),
+              CompressionType.NONE,
+              TimestampType.CREATE_TIME,
+              batch.baseOffset()
+            )
+
+            (high ++ low).foreach { record =>
+              builder.append(
+                record.timestamp(),
+                record.key(),
+                record.value(),
+                record.headers()
+              )
+            }
+
+            newBatches += builder.build()
+          }
+
+          // 모든 batch를 하나로 묶음
+          val totalSize = newBatches.map(_.sizeInBytes()).sum
+          val allRecordsBuffer = ByteBuffer.allocate(totalSize)
+          newBatches.foreach { m =>
+            allRecordsBuffer.put(m.buffer.duplicate())
+          }
+          allRecordsBuffer.flip()
+
+          val memoryRecords = MemoryRecords.readableRecords(allRecordsBuffer)
+
+
+          val fetchPartitionData = new FetchPartitionData(
+            Errors.NONE,
+            result.highWatermark,
+            result.lastStableOffset.getOrElse(0L),
+            memoryRecords,
+            Optional.empty(),
+            OptionalLong.of(result.leaderLogStartOffset),
+            Optional.ofNullable(null),
+            OptionalInt.empty(),
+            false
+          )
+
+          println(s"[PriorityFetch] $tp | TOTAL=${memoryRecords.records().asScala.size}")
+          Some(tp -> fetchPartitionData)
+
+        } catch {
+          case e: Throwable =>
+            println(s"[PriorityFetch] Failed to prioritize $tp: ${e.getMessage}")
+            None
+        }
       }
-      responseCallback(fetchPartitionData)
+
+      responseCallback(prioritizedResults)
+
     } else {
       // construct the fetch results from the read results
       val fetchPartitionStatus = new mutable.ArrayBuffer[(TopicIdPartition, FetchPartitionStatus)]

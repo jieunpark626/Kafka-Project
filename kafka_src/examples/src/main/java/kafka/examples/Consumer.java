@@ -103,6 +103,7 @@ public class Consumer extends Thread implements ConsumerRebalanceListener {
                         );
                         //Utils.maybePrintRecord(numRecords, record);
                     }
+
                     remainingRecords -= records.count();
                 } catch (AuthorizationException | UnsupportedVersionException
                          | RecordDeserializationException e) {

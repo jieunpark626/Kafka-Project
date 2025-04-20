@@ -148,7 +148,7 @@ public class Producer extends Thread {
             throws ExecutionException, InterruptedException {
         try {
             // send the record and then call get, which blocks waiting for the ack from the broker
-            RecordMetadata metadata = producer.send(new ProducerRecord<Integer, String>(topic, key, value, headers))
+            RecordMetadata metadata = producer.send(new ProducerRecord<Integer, String>(topic, null, value, headers))
                     .get();
             Utils.maybePrintRecord(numRecords, key, value, metadata);
             return metadata;
