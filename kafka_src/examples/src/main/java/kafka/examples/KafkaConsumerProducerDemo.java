@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
  * record all the log output together.
  */
 public class KafkaConsumerProducerDemo {
-    public static final String TOPIC_NAME = "my-topic-multi";
+    public static final String TOPIC_NAME = "my-topic";
     public static final String GROUP_NAME = "my-group";
 
     public static void main(String[] args) {
