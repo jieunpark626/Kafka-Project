@@ -1689,28 +1689,31 @@ class ReplicaManager(val config: KafkaConfig,
     //                        6) has a preferred read replica
     if (!remoteFetchInfo.isPresent && (params.maxWaitMs <= 0 || fetchInfos.isEmpty || bytesReadable >= params.minBytes || errorReadingData ||
       hasDivergingEpoch || hasPreferredReadReplica)) {
-      val prioritizedResults = logReadResults.flatMap { case (tp, result) =>
+      val priorityFetchData = logReadResults.flatMap { case (tp, result) =>
         try {
           val batches = result.info.records.batches().asScala
-          val newBatches = new scala.collection.mutable.ListBuffer[MemoryRecords]()
-
+          val prioritySortedBatch = new scala.collection.mutable.ListBuffer[MemoryRecords]()
           batches.foreach { batch =>
             val records = batch.iterator().asScala.toList
-            val (high, low) = records.partition { record =>
-              val headerOpt = record.headers().find(_.key() == "priority")
-              headerOpt.exists(h => new String(h.value()) == "HIGH")
+            val high = new scala.collection.mutable.ListBuffer[Record]()
+            val low = new scala.collection.mutable.ListBuffer[Record]()
+            records.foreach { record =>
+              val priority = record.headers().find(_.key() == "priority")
+              if (priority.exists(h => new String(h.value()) == "HIGH")) {
+                high += record
+              } else {
+                low += record
+              }
             }
 
-            // 기존 batch의 offset 기준으로 builder 생성
-            val estimatedSize = batch.sizeInBytes() + 128 // 여유 버퍼
+            val batchSize = batch.sizeInBytes()
             val builder = MemoryRecords.builder(
-              ByteBuffer.allocate(estimatedSize),
+              ByteBuffer.allocate(batchSize),
               CompressionType.NONE,
               TimestampType.CREATE_TIME,
               batch.baseOffset()
             )
-
-            (high ++ low).foreach { record =>
+            high.foreach { record =>
               builder.append(
                 record.timestamp(),
                 record.key(),
@@ -1718,21 +1721,24 @@ class ReplicaManager(val config: KafkaConfig,
                 record.headers()
               )
             }
-
-            newBatches += builder.build()
+            low.foreach { record =>
+              builder.append(
+                record.timestamp(),
+                record.key(),
+                record.value(),
+                record.headers()
+              )
+            }
+            prioritySortedBatch += builder.build()
           }
-
-          // 모든 batch를 하나로 묶음
-          val totalSize = newBatches.map(_.sizeInBytes()).sum
-          val allRecordsBuffer = ByteBuffer.allocate(totalSize)
-          newBatches.foreach { m =>
+          val size = prioritySortedBatch.map(_.sizeInBytes()).sum
+          val allRecordsBuffer = ByteBuffer.allocate(size)
+          prioritySortedBatch.foreach { m =>
             allRecordsBuffer.put(m.buffer.duplicate())
           }
           allRecordsBuffer.flip()
 
           val memoryRecords = MemoryRecords.readableRecords(allRecordsBuffer)
-
-
           val fetchPartitionData = new FetchPartitionData(
             Errors.NONE,
             result.highWatermark,
@@ -1744,20 +1750,15 @@ class ReplicaManager(val config: KafkaConfig,
             OptionalInt.empty(),
             false
           )
-
-          println(s"[PriorityFetch] $tp | TOTAL=${memoryRecords.records().asScala.size}")
+          println(s"[PriorityFetch] $tp | size=${memoryRecords.records().asScala.size}")
           Some(tp -> fetchPartitionData)
-
         } catch {
           case e: Throwable =>
-            println(s"[PriorityFetch] Failed to prioritize $tp: ${e.getMessage}")
             None
         }
       }
-
-      responseCallback(prioritizedResults)
-
-    } else {
+      responseCallback(priorityFetchData)
+    } Í else {
       // construct the fetch results from the read results
       val fetchPartitionStatus = new mutable.ArrayBuffer[(TopicIdPartition, FetchPartitionStatus)]
       fetchInfos.foreach { case (topicIdPartition, partitionData) =>
