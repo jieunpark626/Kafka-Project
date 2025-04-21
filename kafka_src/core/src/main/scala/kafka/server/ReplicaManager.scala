@@ -1758,7 +1758,7 @@ class ReplicaManager(val config: KafkaConfig,
         }
       }
       responseCallback(priorityFetchData)
-    } Í else {
+    } else {
       // construct the fetch results from the read results
       val fetchPartitionStatus = new mutable.ArrayBuffer[(TopicIdPartition, FetchPartitionStatus)]
       fetchInfos.foreach { case (topicIdPartition, partitionData) =>
