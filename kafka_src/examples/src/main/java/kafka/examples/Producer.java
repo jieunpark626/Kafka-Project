@@ -99,7 +99,7 @@ public class Producer extends Thread {
             Utils.printOut("Unhandled exception");
             e.printStackTrace();
         }
-        Utils.printOut("Sent %d records", sentRecords);
+        Utils.printOut("[Producer] %d records", sentRecords);
         shutdown();
     }
 
@@ -148,7 +148,7 @@ public class Producer extends Thread {
             throws ExecutionException, InterruptedException {
         try {
             // send the record and then call get, which blocks waiting for the ack from the broker
-            RecordMetadata metadata = producer.send(new ProducerRecord<Integer, String>(topic, key, value, headers))
+            RecordMetadata metadata = producer.send(new ProducerRecord<Integer, String>(topic, null, value, headers))
                     .get();
             Utils.maybePrintRecord(numRecords, key, value, metadata);
             return metadata;
@@ -196,25 +196,8 @@ public class Producer extends Thread {
             } else {
                 Utils.maybePrintRecord(numRecords, key, value, metadata);
             }
-            System.out.printf("Sent record(key=%d value=%s priority=%s) to partition=%d offset=%d%n",
-                    key, value, priority, metadata.partition(), metadata.offset());
+            System.out.printf("[Producer] key=%d, value=%s, offset=%d%n, priority=%s",
+                    key, value, metadata.offset(), priority);
         }
     }
-
-//    public static void main(String[] args) throws InterruptedException {
-//        CountDownLatch latch = new CountDownLatch(1);
-//        Producer producer = new Producer(
-//                "test-thread",
-//                "localhost:9092",
-//                "test-topic",
-//                true,
-//                null,
-//                false,
-//                10,
-//                0,
-//                latch
-//        );
-//        producer.start();
-//        producer.join();
-//    }
 }

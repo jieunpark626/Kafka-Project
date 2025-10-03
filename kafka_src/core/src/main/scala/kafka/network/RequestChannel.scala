@@ -410,6 +410,10 @@ class RequestChannel(val queueSize: Int,
     priority match {
       case Some("HIGH") =>
         priorityQueue.put(request)
+        println(s"[Kafka-Broker] Request sent to PRIORITY queue (HIGH)")
+      case Some("LOW") =>
+        requestQueue.put(request)
+        println(s"[Kafka-Broker] Request sent to DEFAULT queue (LOW)")
       case _ =>
         requestQueue.put(request)
     }
@@ -502,7 +506,7 @@ class RequestChannel(val queueSize: Int,
     if (callbackRequest != null)
       callbackRequest
     else {
-      val request = requestQueue.poll(timeout, TimeUnit.MILLISECONDS)
+      val request = Option(priorityQueue.poll()).getOrElse(requestQueue.poll(timeout, TimeUnit.MILLISECONDS))
       request match {
         case WakeupRequest => callbackQueue.poll()
         case _ => request
